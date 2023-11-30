@@ -4,11 +4,14 @@ from datasets import load_dataset
 from pprint import pprint
 from torch.utils.data import DataLoader
 from transformers import BitsAndBytesConfig, DataCollatorForLanguageModeling
+from execution import check_correctness
 from utils import construct_stopping_criteria, setup_model_tokenizer
 
 # Invariants
 BATCH_SIZE = 32
 NEW_TOKENS = 128
+TEMP = 0.2
+TIMEOUT = 30
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=True,
     bnb_4bit_use_double_quant=True,
@@ -16,7 +19,7 @@ bnb_config = BitsAndBytesConfig(
     bnb_4bit_compute_dtype=torch.bfloat16,
 )
 
-# Load the HumanEval dataset
+# Load HumanEval
 # Each problem includes a function signature, docstring, body, and several unit tests, with an average of 7.7 tests per problem
 # features: ['task_id', 'prompt', 'canonical_solution', 'test', 'entry_point']
 dataset = load_dataset("openai_humaneval")
@@ -57,15 +60,17 @@ rank_tokenizer, rank_model = setup_model_tokenizer(
 dataloader = DataLoader(dataset["test"], batch_size=1, shuffle=False)
 # HACK: Dataset is so small that let's just loop through it one-by-one for now LOL
 # Fuck the Stanford people fr how dare they scoop my idea
+print('data loader len', len(dataloader))
+total_correct = 0
 for i, data in enumerate(dataloader):
     # print("data", data)
     og_prompt = data["prompt"][0]
     # StarCoder magic
-    magic_prefix = (
+    magic_starcoder_prefix = (
         "<filename>solutions/solution_1.py\n"
         "# Here is the correct implementation of the code exercise\n"
     )
-    prompt = magic_prefix + og_prompt
+    prompt = magic_starcoder_prefix + og_prompt
     print("##### Prompt #####")
     print(prompt)
     docstring = data["docstring"][0]
@@ -80,6 +85,8 @@ for i, data in enumerate(dataloader):
         pad_token_id=gen_tokenizer.eos_token_id,
         max_new_tokens=NEW_TOKENS,
         return_dict_in_generate=True,
+        do_sample=True,
+        temperature=TEMP,
         stopping_criteria=construct_stopping_criteria(
             "code", [], gen_tokenizer, gen_device
         ),
@@ -91,22 +98,30 @@ for i, data in enumerate(dataloader):
         :, gen_inputs["input_ids"].shape[1] :
     ].squeeze()
 
+
     # print("Gen Outputs Shape", gen_outputs.shape)
 
     # Attempt to recover doctring
     # TODO: think about better prompting or (e.g. some form of estimate P(y|x))
     # Not sure if we also want this to be sampled
-    rank_inputs = gen_tokenizer.decode(gen_outputs, skip_special_tokens=True)
+    generated_code = gen_tokenizer.decode(gen_outputs, skip_special_tokens=True)
     # print("OG rank inputs", rank_inputs)
     # Based on HF page
-    full_code = og_prompt + rank_inputs
+    correct = check_correctness(data, generated_code, TIMEOUT)
+    print('Correct')
+    print(correct)
+    if correct['passed']: 
+        total_correct += 1
+    full_code = og_prompt + generated_code
 
     # TOOD: run full_code on the test set
-
+    # TODO: why are there no completions for some example? 
+    # TODO: fix the stopping criterion (e.g. if main, new function, etc.)
+    # TODO: fix the comment formatting
     print('##### FULL CODE #####')
     print(full_code)
 
-    rank_inputs += f"\n\n#docstring"
+    rank_inputs = generated_code + f"\n\n#docstring"
     print("##### Formatted rank inputs #####")
     print(rank_inputs)
     rank_inputs = rank_tokenizer(rank_inputs, return_tensors="pt").to(rank_device)
@@ -119,15 +134,5 @@ for i, data in enumerate(dataloader):
     rank_outputs = rank_tokenizer.decode(rank_outputs, skip_special_tokens=True)
     print("##### Rank outputs #####", rank_outputs)
 
-# doc_max_length = 128
-
-# generated_ids = rank_model.generate(
-#     **inputs,
-#     max_length=inputs.input_ids.shape[1] + doc_max_length,
-#     do_sample=False,
-#     return_dict_in_generate=True,
-#     num_return_sequences=1,
-#     output_scores=True,
-#     pad_token_id=50256,
-#     eos_token_id=50256  # <|endoftext|>
-# )
+total_correct /= len(dataloader)
+print(f'Total Pass: {total_correct}')
