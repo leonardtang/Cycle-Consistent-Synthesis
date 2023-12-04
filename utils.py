@@ -5,6 +5,11 @@ from transformers import (
     StoppingCriteria,
     StoppingCriteriaList,
 )
+from typing import List
+
+# The if looks questionabe
+# STOP_SEQS = ['\nclass', '\ndef', '\n#', '\nif', '\nprint']
+STOP_SEQS = ["\nclass", "\ndef", "\nif", "\nprint"]
 
 
 # TODO: figure out how to stop only after second time witness of stop_token_ids
@@ -17,51 +22,67 @@ class CodingStop(StoppingCriteria):
         stop_token_ids = [torch.LongTensor(x).to(device) for x in stop_token_ids]
         self.stop_token_ids = stop_token_ids
 
-    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+    def __call__(
+        self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs
+    ) -> bool:
         for stop_ids in self.stop_token_ids:
             if torch.eq(input_ids[0][-len(stop_ids) :], stop_ids).all():
                 return True
         return False
 
-# Potential stopping criteria based on StarCoder observations
-# if __name__ == "__main__":
 
 # Also need to check tab sizing??
 def construct_stopping_criteria(type, stop_words, tokenizer, device):
-    if type == 'code':
+    if type == "code":
         return StoppingCriteriaList([CodingStop(stop_words, tokenizer, device)])
-    elif type == 'doc':
+    elif type == "doc":
         pass
 
 
-# Tests example:
-# METADATA = {
-#     'author': 'jt',
-#     'dataset': 'test'
-# }
+def filter_code(completion: str) -> str:
+    # The program tends to overwrite, we only take the first function
+    completion = completion.lstrip("\n")
+    return completion.split("\n\n")[0]
 
 
-# def check(candidate):
-#     assert candidate([1.0, 2.0, 3.9, 4.0, 5.0, 2.2], 0.3) == True
-#     assert candidate([1.0, 2.0, 3.9, 4.0, 5.0, 2.2], 0.05) == False
-#     assert candidate([1.0, 2.0, 5.9, 4.0, 5.0], 0.95) == True
-#     assert candidate([1.0, 2.0, 5.9, 4.0, 5.0], 0.8) == False
-#     assert candidate([1.0, 2.0, 3.0, 4.0, 5.0, 2.0], 0.1) == True
-#     assert candidate([1.1, 2.2, 3.1, 4.1, 5.1], 1.0) == True
-#     assert candidate([1.1, 2.2, 3.1, 4.1, 5.1], 0.5) == False
-def evaluate_solution(program, test):
-    # TODO: you know what to do
-    pass
+class Trimmer:
+    def __init__(self, stop_words, tokenizer, device) -> None:
+        stop_token_ids = [
+            tokenizer(x, return_tensors="pt")["input_ids"].squeeze() for x in stop_words
+        ]
+        stop_token_ids = [torch.LongTensor(x).to(device) for x in stop_token_ids]
+        self.stop_token_ids = stop_token_ids
+        self.max_stop_len = max([len(stop_ids) for stop_ids in stop_token_ids])
+
+    def trim_generation(
+        self,
+        generated_ids: List,
+    ):
+        """
+        Removes the stopping sequence suffixes
+        """
+        for stop_ids in self.stop_token_ids:
+            if torch.eq(generated_ids[-len(stop_ids) :], stop_ids).all():
+                return generated_ids[: -len(stop_ids)]
+        return generated_ids
+
+
+def format_indent(completion: str): 
+    return completion.replace("#     ", "    # ").replace('#    ', "    # ")
 
 
 def setup_tokenizer(path):
+    # revision="main" if CodeGen2
     tokenizer = AutoTokenizer.from_pretrained(
         path,
-        trust_remote_code=True,
+        trust_remote_code=True
     )
     if "starcoder" in path:
         pass
+    elif "kdf/python-docstring" in path:
+        tokenizer.pad_token = tokenizer.eos_token
 
+    tokenizer.padding_side = "left"
     return tokenizer
 
 
