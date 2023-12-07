@@ -80,8 +80,10 @@ def setup_tokenizer(path):
     if "starcoder" in path:
         pass
     elif "kdf/python-docstring" in path:
-        tokenizer.pad_token = tokenizer.eos_token
+        pass
 
+    # For open ended generation
+    tokenizer.pad_token = tokenizer.eos_token
     tokenizer.padding_side = "left"
     return tokenizer
 
@@ -121,3 +123,27 @@ def setup_model_tokenizer(
                 quantization_config=bnb_config,
             ).eval()
     return tokenizer, model
+
+
+def format_prompt(prompt, model_name):
+    if "TinyLlama" in model_name:
+        formatted_prompt = (
+            f"<|im_start|>user\n{prompt}<|im_end|>\n<|im_start|>assistant\n"
+        )
+    elif "Mistral-7B-Instruct" in model_name or "on-policy-mistral" in model_name:
+        formatted_prompt = [
+            {"role": "user", "content": prompt},
+        ]
+    elif "Llama-2-7b-chat-hf" in model_name:
+        judge_system_prompt = """
+        You are a helpful documentation assistant that looks at a piece of code and provides an English description of what the code does.
+        You should be concise and precise with your descriptions.
+        """
+        formatted_prompt = [
+            {"role": "system", "content": judge_system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+    else:
+        formatted_prompt = prompt
+
+    return formatted_prompt
