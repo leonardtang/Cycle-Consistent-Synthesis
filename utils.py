@@ -147,3 +147,54 @@ def format_prompt(prompt, model_name):
         formatted_prompt = prompt
 
     return formatted_prompt
+
+
+def autoreg_generate(
+    text,
+    model,
+    tokenizer,
+    sample=False,
+    stopping_criteria=None,
+    num_beams=3,
+    max_new_tokens=512,
+    return_prompt=False,
+    device="cuda",
+    return_raw_ids=False,
+    input_tokens=None,
+    temp=None,
+    top_p=None,
+):
+    # Don't think any of the models we're looking at have max_lengths to truncate too
+    if not input_tokens:
+        input_tokens = tokenizer(
+            text, return_tensors="pt", padding=True
+        ).to(device)
+
+    logits, outputs = None, None
+    with torch.no_grad():
+        output_dict = model.generate(
+            **input_tokens,
+            max_new_tokens=max_new_tokens,
+            return_dict_in_generate=True,
+            output_scores=True,
+            do_sample=sample,
+            pad_token_id=tokenizer.eos_token_id,
+            temperature=temp,
+            top_p=top_p
+        )
+        logits = output_dict.scores
+        if not return_prompt:
+            out_seq = output_dict.sequences[:, input_tokens["input_ids"].shape[1] :].detach().cpu()
+        else:
+            out_seq = output_dict.sequences.detach().cpu()
+
+        if return_raw_ids:
+            raw_ids = [os for os in out_seq]
+            return raw_ids, logits
+
+        outputs = tokenizer.batch_decode(
+            out_seq,
+            skip_special_tokens=True,
+        )
+
+    return outputs, logits
