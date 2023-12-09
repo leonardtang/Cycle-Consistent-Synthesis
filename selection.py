@@ -5,6 +5,7 @@ the latter of which may not be possible or practical in deployment.
 
 import numpy as np
 import random
+import torch
 import torch.nn.functional as F
 from numpy import dot
 from numpy.linalg import norm
@@ -12,12 +13,12 @@ from utils import format_prompt, autoreg_generate
 
 
 def selection(
-    scheme, code_choices, docstring, recovered, sim_model, judge_model, judge_tokenizer
+    scheme, code_choices, docstring, recovered, gen_model, gen_outputs, gen_scores, sim_model, judge_model, judge_tokenizer
 ):
     if scheme == "random":
         return random.choice(code_choices)
+    # Choose the program that yields the most faithful docstring recovery
     elif scheme == "cycle-match":
-        # Choose the program that yields the most faithful docstring recovery
         # TODO: check to see if we can speed up this encoding process..?
         og_embed = sim_model.encode(docstring)
         recov_embeds = sim_model.encode(recovered)
@@ -106,6 +107,30 @@ def selection(
         )
     # Choose program with the maximum likelihood
     elif scheme == "logprob":
-        pass
+        # gen outputs is 10 x 128
+        # gen scores is 128 x 10
+        # print('gen outputs', gen_outputs.shape)
+        # print('gen scores', gen_scores.shape)
+        transition_scores = gen_model.compute_transition_scores(
+            gen_outputs, gen_scores, normalize_logits=True
+        ).detach().cpu()
+
+        # for score in transition_scores[0]:
+        #     print
+        # This is 10 x 128
+        # print("TRANSITION SCORES")
+        # print(transition_scores.shape)
+
+        # Same as sum of log probs, which is same as product of probs
+        mean_log_probs = torch.sum(transition_scores, axis=1)
+        best_answer = np.argmax(mean_log_probs, axis=0)
+        rank = np.argsort(mean_log_probs)
+        return (
+            code_choices[best_answer],
+            np.array(recovered)[rank],
+            np.array(code_choices)[rank],
+            np.array(mean_log_probs)[rank],
+        )
+
     else:
         raise Exception(f"Scheme ({scheme}) not implemented")

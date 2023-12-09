@@ -1,11 +1,7 @@
 import numpy as np
-import random
 import re
 import torch
-import torch.nn.functional as F
 from datasets import load_dataset
-from numpy import dot
-from numpy.linalg import norm
 from pprint import pprint
 from sentence_transformers import SentenceTransformer
 from torch.utils.data import DataLoader
@@ -16,11 +12,12 @@ from transformers import (
     AutoModelForCausalLM,
 )
 from execution import check_correctness
+from selection import selection
 from utils import (
-    autoreg_generate,
     construct_stopping_criteria,
     filter_code,
     format_indent,
+    format_indent_docstring,
     format_prompt,
     setup_model_tokenizer,
     STOP_SEQS,
@@ -28,16 +25,18 @@ from utils import (
 )
 
 # Invariants
-BATCH_SIZE = 32
 NEW_TOKENS = 128
 # TODO: probably figure out way to batch generations
 REPEAT = 10
-BATCH = 10
+BATCH_SIZE = 10
 GEN_TEMP = 0.8
 TIMEOUT = 30
-SELECT_CRITERIA = "judge-docstring-docstring"
+# SELECT_CRITERIA = "judge-docstring-docstring"
+SELECT_CRITERIA = "logprob"
+# SELECT_CRITERIA = "cycle-match"
 # To be used in conjunction with the docstring generator
-FEW_SHOT = 3
+# FEW_SHOT = 3
+FEW_SHOT = 0
 
 rankers = {
     "codellama": "codellama/CodeLlama-7b-hf",
@@ -50,13 +49,13 @@ gen_checkpoint = "Salesforce/codegen2-7B"
 rank_checkpoint = rankers["mistral"]
 
 print("########## HYPERPARAMETERS ##########")
-print("BATCH_SIZE:", BATCH_SIZE)
 print("NEW_TOKENS:", NEW_TOKENS)
 print("REPEAT:", REPEAT)
-print("BATCH:", BATCH)
+print("BATCH_SIZE:", BATCH_SIZE)
 print("GEN_TEMP:", GEN_TEMP)
 print("TIMEOUT:", TIMEOUT)
 print("SELECT_CRITERIA:", SELECT_CRITERIA)
+print("FEW_SHOT", FEW_SHOT)
 print("RANKER:", rank_checkpoint)
 print("GENERATOR:", gen_checkpoint)
 
@@ -81,104 +80,8 @@ def extract_docstring(text):
 
 
 def preprocess_prompt(example):
-    example["docstring"] = extract_docstring(example["prompt"])
+    example["docstring"] = format_indent_docstring(extract_docstring(example["prompt"]))
     return example
-
-
-def selection(scheme, code_choices, docstring, recovered, judge_model, judge_tokenizer):
-    if scheme == "random":
-        return random.choice(code_choices)
-    elif scheme == "cycle-match":
-        # Choose the program that yields the most faithful docstring recovery
-        # TODO: check to see if we can speed up this encoding process..?
-        og_embed = sim_model.encode(docstring)
-        recov_embeds = sim_model.encode(recovered)
-        sims = [dot(og_embed, b) / (norm(og_embed) * norm(b)) for b in recov_embeds]
-        best_answer = np.argmax(sims, axis=0)
-        rank = np.argsort(sims)
-        ranked_answers = np.array(code_choices)[rank]
-        # print("##### RANKED ANSWERS #####")
-        # pprint(ranked_answers)
-        return (
-            code_choices[best_answer],
-            np.array(recovered)[rank],
-            ranked_answers,
-            np.array(sims)[rank],
-        )
-    # TODO: implement more ranking procedures to benchmark against
-    # TODO: language model benchmarking procedure ("Is this {code} an instance of {docstring}")
-    elif "judge" in scheme:
-        if scheme == "judge-program-docstring":
-            judge_prompts = [
-                f"Consider the following program: {code}\n\n"
-                + f"Does this program achieve the following goal: {docstring}. "
-                + "Answer strictly with 'Yes' or 'No'. Do not say anything else. "
-                + "If the program shows any sign of not achieving the intended goal, or has any errors, you should bias your response towards 'No'."
-                for code in code_choices
-            ]
-        elif scheme == "judge-docstring-docstring":
-            judge_prompts = [
-                f"Consider the following summarized inten: {rec}\n\n"
-                + f"Does this summarized intent match the following goal intent: {docstring}. "
-                + "Answer strictly with 'Yes' or 'No'. Do not say anything else. "
-                + "If the summarized intent shows any sign of not matching the intended goal, you should bias your response towards 'No'."
-                for rec in recovered
-            ]
-        else:
-            raise Exception(f"Scheme ({scheme}) is not implemented.")
-
-        formatted_judge_prompts = [
-            format_prompt(p, "mistralai/Mistral-7B-Instruct-v0.1")
-            for p in judge_prompts
-        ]
-        tokens = [
-            judge_tokenizer.apply_chat_template(fjp, return_tensors="pt").to(
-                judge_model.device
-            )[0]
-            for fjp in formatted_judge_prompts
-        ]
-
-        text = judge_tokenizer.batch_decode(tokens)
-        _, judge_model_output_logits = autoreg_generate(
-            text,
-            judge_model,
-            judge_tokenizer,
-            max_new_tokens=10,
-            sample=False,
-            device=judge_model.device,
-            return_raw_ids=True,
-        )
-
-        word_to_id = {
-            "Yes": 5592,
-            "yes": 5081,
-            "No": 1770,
-            "no": 708,
-        }
-
-        # For now, just check first token generated. Each logits is going to be V-long
-        first_dist = F.softmax(judge_model_output_logits[0].detach().cpu(), dim=1)
-        positive = [
-            logits[word_to_id["Yes"]] + logits[word_to_id["yes"]]
-            for logits in first_dist
-        ]
-        print("POSITIVE")
-        print(positive)
-        del judge_model_output_logits
-        best_answer = np.argmax(positive, axis=0)
-
-        # return code_choices[best_answer]
-
-        rank = np.argsort(positive)
-        return (
-            code_choices[best_answer],
-            np.array(recovered)[rank],
-            np.array(code_choices)[rank],
-            np.array(positive)[rank],
-        )
-
-    else:
-        raise Exception(f"Scheme ({scheme}) not implemented")
 
 
 # TODO: maybe the goal is to elicit more of a "summary" or "goal" type of response, which more closely match the docstring.
@@ -273,12 +176,13 @@ if __name__ == "__main__":
     dataset = dataset.map(preprocess_prompt)
     # Calculate split percentage roughly based on few-shot
     if FEW_SHOT:
-        split = 5 / 164
+        split = FEW_SHOT / 164
         dataset = dataset["test"].train_test_split(test_size=split)
         dataset, few_shot_dataset = dataset["train"], dataset["test"]
         few_shot_dataloader = DataLoader(few_shot_dataset, batch_size=1, shuffle=False)
     else:
         dataset = dataset["test"]
+        few_shot_dataloader = None
 
     # Generator setup
     # Benchmark: CodeGen2.0-7B-multi is 18.83; reproduce to 18.90
@@ -329,6 +233,7 @@ if __name__ == "__main__":
                 pad_token_id=gen_tokenizer.eos_token_id,
                 max_new_tokens=NEW_TOKENS,
                 return_dict_in_generate=True,
+                output_scores=True,
                 do_sample=True,
                 temperature=GEN_TEMP,
                 top_p=0.95,
@@ -338,10 +243,21 @@ if __name__ == "__main__":
                 # ),
             )
 
-            gen_outputs = gen_outputs_dict.sequences[
+            print('gen_outputs_raw pre', gen_outputs_dict.sequences.shape)
+            gen_outputs_raw = gen_outputs_dict.sequences[
                 :, gen_inputs["input_ids"].shape[1] :
             ]
-            gen_outputs = gen_outputs.squeeze(dim=0)
+            print('gen_outputs_raw post', gen_outputs_raw.shape)
+            # gen_outputs_dict.scores[0].shape is 10 x 51200
+            print('gen_outputs_dict.scores', len(gen_outputs_dict.scores))
+            gen_scores = gen_outputs_dict.scores
+            # print('stacked dims', gen_scores.shape)
+            # gen_scores = gen_scores[
+            #     gen_inputs["input_ids"].shape[1]:, :, :
+            # ]
+            # print('gen_scores post truncate', gen_scores.shape)
+            # gen_scores = torch.unbind(gen_scores)
+            gen_outputs = gen_outputs_raw.squeeze(dim=0)
             # gen_outputs = trimmer.trim_generation(gen_outputs)
 
             # Attempt to recover doctring
@@ -366,7 +282,6 @@ if __name__ == "__main__":
                 )
                 for gc in generated_code_list
             ]
-
 
             rank_inputs = rank_tokenizer(
                 rank_inputs_list, return_tensors="pt", padding=True
@@ -400,6 +315,10 @@ if __name__ == "__main__":
             global_generated_code_list,
             docstring,
             global_rank_outputs,
+            gen_model,
+            gen_outputs_raw,
+            gen_scores,
+            sim_model,
             rank_model,
             rank_tokenizer,
         )

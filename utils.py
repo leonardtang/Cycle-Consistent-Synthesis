@@ -70,6 +70,8 @@ class Trimmer:
 def format_indent(completion: str): 
     return completion.replace("#     ", "    # ").replace('#    ', "    # ")
 
+def format_indent_docstring(docstring: str): 
+    return docstring.replace("    ", "")
 
 def setup_tokenizer(path):
     # revision="main" if CodeGen2
