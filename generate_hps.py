@@ -1,11 +1,13 @@
 import itertools
 
-selection = ["logprob"]
-few_shot = [0, 3, 5]
-rankers = ["codellama", "llama", "kdf", "mistral"]
+selection = ["cycle-match", "logprob", "random", "judge-program-docstring", "judge-docstring-docstring"]
+temps = ['0.5']
+reps = ['10']
+few_shot = ["0", "3", "5"]
+# com_synths = ["codellama", "llama", "kdf", "mistral"]
+sim_match = ["sentence-transformer"]
 
-# Create a list of all arrays
-all_params = [param1_values, param2_values] # Add all your arrays here
+all_params = [selection, few_shot, temps, reps] 
 
 # Generate all combinations
 for combination in itertools.product(*all_params):

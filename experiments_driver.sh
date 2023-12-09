@@ -15,11 +15,13 @@ conda activate redteam
 # Function to check and run the script on a specific GPU
 run_on_gpu() {
     local gpu_id=$1
-    echo "Trying to run on GPU $gpu_id"
+    local params=$2
+
+    echo "Running on GPU $gpu_id with params: $params"
     
     # Set CUDA_VISIBLE_DEVICES to the current GPU
     # Do some logging or something
-    CUDA_VISIBLE_DEVICES=$gpu_id python cycle.py && exit 0
+    CUDA_VISIBLE_DEVICES=$gpu_id python cycle.py $params
 }
 
 # Get the number of GPUs
@@ -27,8 +29,11 @@ num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 
 # Outer loop to iterate through HPs
 
-# Iterate through GPUs and try to run the script
-for (( gpu_id=1; gpu_id<num_gpus; gpu_id++ ))
+# Generate hyperparameter combinations and iterate over them
+python generate_hps.py | while IFS=, read -r selectcrit fewshot gentemp repeat
 do
-    run_on_gpu $gpu_id
+    for (( gpu_id=0; gpu_id<num_gpus; gpu_id++ ))
+    do
+        run_on_gpu $gpu_id "--select-crit $selectcrit --few-shot $fewshot --gen-temp $gentemp --repeat $repeat"
+    done
 done
