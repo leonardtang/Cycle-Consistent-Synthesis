@@ -30,7 +30,7 @@ SELECT_CRITERIA = "logprob"
 # Program --> Documentation examples to set up documentation generation
 FEW_SHOT = 0
 SIM_MATCH = "sentence-transformer"
-DEBUG = True
+DEBUG = False
 
 rankers = {
     "codellama": "codellama/CodeLlama-7b-hf",
@@ -73,10 +73,12 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE)
     parser.add_argument("--gen-temp", type=float, default=GEN_TEMP)
     parser.add_argument("--select-crit", type=str, default=SELECT_CRITERIA)
-    parser.add_argument("--few-shot", type=str, default=FEW_SHOT)
+    parser.add_argument("--few-shot", type=int, default=FEW_SHOT)
     parser.add_argument("--timeout", type=int, default=TIMEOUT)
     parser.add_argument("--sim-match", type=str, default=TIMEOUT)
     args = parser.parse_args()
+
+    print("ARGS", args)
 
     print("########## HYPERPARAMETERS ##########")
     print("NEW_TOKENS:", args.new_tokens)
@@ -112,13 +114,13 @@ if __name__ == "__main__":
     )
 
     # Ranker setup
-    rank_device = "cuda"
-    rank_checkpoint = rankers["mistral"]
-    rank_tokenizer, rank_model = setup_model_tokenizer(
-        rank_checkpoint, bit_4=True, device=rank_device, bnb_config=bnb_config
+    docsynth_device = "cuda"
+    docsynth_checkpoint = rankers["mistral"]
+    docsynth_tokenizer, docsynth_model = setup_model_tokenizer(
+        docsynth_checkpoint, bit_4=True, device=docsynth_device, bnb_config=bnb_config
     )
 
-    print("RANKER:", rank_checkpoint)
+    print("DOCSYNTH:", docsynth_checkpoint)
     print("GENERATOR:", gen_checkpoint)
 
     # Matcher setup
@@ -129,6 +131,7 @@ if __name__ == "__main__":
     dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
     total_correct = 0
     for i, data in enumerate(dataloader):
+        
         print(f"\n\n\n!!!!!!!!!!!!! Evaluating Question {i} !!!!!!!!!!!!!")
         og_prompt = data["prompt"][0]
         prompt = og_prompt
@@ -146,7 +149,7 @@ if __name__ == "__main__":
         prompt_copies = [prompt for _ in range(args.repeat)]
         for i in range(0, args.repeat, args.batch_size):
             cand_size = min(args.batch_size, args.repeat - i)
-            global_generated_code_list, global_rank_outputs = [], []
+            global_generated_code_list, global_docsynth_outputs = [], []
 
             gen_inputs = gen_tokenizer(prompt_copies, return_tensors="pt").to(
                 gen_device
@@ -189,49 +192,49 @@ if __name__ == "__main__":
                 # Attempt to recover doctring
                 # TODO: think about better prompting or (e.g. some form of estimate P(y|x))
                 # Not sure if we also want this to be sampled
-                rank_inputs_list = [
+                docsynth_inputs_list = [
                     setup_docstring_prompt(
-                        gc, rank_checkpoint, rank_tokenizer, few_shot_dataloader
+                        gc, docsynth_checkpoint, docsynth_tokenizer, few_shot_dataloader
                     )
                     for gc in generated_code_list
                 ]
 
-                rank_inputs = rank_tokenizer(
-                    rank_inputs_list, return_tensors="pt", padding=True
-                ).to(rank_device)
+                docsynth_inputs = docsynth_tokenizer(
+                    docsynth_inputs_list, return_tensors="pt", padding=True
+                ).to(docsynth_device)
                 # TODO: better stopping criteria; also figure out what to do with empty string
-                rank_outputs_dict = rank_model.generate(
-                    **rank_inputs,
-                    pad_token_id=rank_tokenizer.eos_token_id,
+                docsynth_outputs_dict = docsynth_model.generate(
+                    **docsynth_inputs,
+                    pad_token_id=docsynth_tokenizer.eos_token_id,
                     max_new_tokens=args.new_tokens,
                     return_dict_in_generate=True,
                     do_sample=False,
                 )
-                rank_outputs = rank_outputs_dict.sequences[
-                    :, rank_inputs["input_ids"].shape[1] :
+                docsynth_outputs = docsynth_outputs_dict.sequences[
+                    :, docsynth_inputs["input_ids"].shape[1] :
                 ]
-                rank_outputs = rank_outputs.squeeze(dim=0)
-                rank_outputs = rank_tokenizer.batch_decode(
-                    rank_outputs, skip_special_tokens=True
+                docsynth_outputs = docsynth_outputs.squeeze(dim=0)
+                docsynth_outputs = docsynth_tokenizer.batch_decode(
+                    docsynth_outputs, skip_special_tokens=True
                 )
 
-                global_rank_outputs.extend(rank_outputs)
+                global_docsynth_outputs.extend(docsynth_outputs)
 
         print("##### Docstring Example #####")
-        print(rank_outputs[0])
+        print(global_docsynth_outputs[0])
 
         # Rank + choose final solution
         final_program, ranked_docstrings, ranked_programs, scores = selection(
             SELECT_CRITERIA,
             global_generated_code_list,
             docstring,
-            global_rank_outputs,
+            global_docsynth_outputs,
             gen_model,
             gen_outputs_raw,
             gen_scores,
             sim_model,
-            rank_model,
-            rank_tokenizer,
+            docsynth_model,
+            docsynth_tokenizer,
         )
         # # Rank + choose final solution
         # final_program = selection(
