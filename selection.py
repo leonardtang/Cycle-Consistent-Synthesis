@@ -107,20 +107,9 @@ def selection(
         )
     # Choose program with the maximum likelihood
     elif scheme == "logprob":
-        # gen outputs is 10 x 128
-        # gen scores is 128 x 10
-        # print('gen outputs', gen_outputs.shape)
-        # print('gen scores', gen_scores.shape)
         transition_scores = gen_model.compute_transition_scores(
             gen_outputs, gen_scores, normalize_logits=True
         ).detach().cpu()
-
-        # for score in transition_scores[0]:
-        #     print
-        # This is 10 x 128
-        # print("TRANSITION SCORES")
-        # print(transition_scores.shape)
-
         # Same as sum of log probs, which is same as product of probs
         mean_log_probs = torch.sum(transition_scores, axis=1)
         best_answer = np.argmax(mean_log_probs, axis=0)
@@ -131,6 +120,5 @@ def selection(
             np.array(code_choices)[rank],
             np.array(mean_log_probs)[rank],
         )
-
     else:
         raise Exception(f"Scheme ({scheme}) not implemented")

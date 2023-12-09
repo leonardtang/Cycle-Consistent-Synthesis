@@ -9,7 +9,7 @@ from typing import List
 
 # The if looks questionabe
 # STOP_SEQS = ['\nclass', '\ndef', '\n#', '\nif', '\nprint']
-STOP_SEQS = ["\nclass", "\ndef", "\nif", "\nprint"]
+STOP_SEQS = ["\nclass", "\ndef"]
 
 
 # TODO: figure out how to stop only after second time witness of stop_token_ids
@@ -40,7 +40,7 @@ def construct_stopping_criteria(type, stop_words, tokenizer, device):
 
 
 def filter_code(completion: str) -> str:
-    # The program tends to overwrite, we only take the first function
+    # Model tends to overwrite, so we only use the first function
     completion = completion.lstrip("\n")
     return completion.split("\n\n")[0]
 
