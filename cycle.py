@@ -75,7 +75,7 @@ if __name__ == "__main__":
     parser.add_argument("--select-crit", type=str, default=SELECT_CRITERIA)
     parser.add_argument("--few-shot", type=int, default=FEW_SHOT)
     parser.add_argument("--timeout", type=int, default=TIMEOUT)
-    parser.add_argument("--sim-match", type=str, default=TIMEOUT)
+    parser.add_argument("--sim-match", type=str, default=SIM_MATCH)
     args = parser.parse_args()
 
     print("ARGS", args)
@@ -142,15 +142,15 @@ if __name__ == "__main__":
             prompt += magic_starcoder_prefix
 
         docstring = data["docstring"][0]
-        print("##### INTENDED DOCSTRING #####")
+        print("##### Intended Docstring #####")
         print(docstring)
 
         # (==>) Forward-generate program.
         prompt_copies = [prompt for _ in range(args.repeat)]
+        global_generated_code_list, global_docsynth_outputs = [], []
+        
         for i in range(0, args.repeat, args.batch_size):
             cand_size = min(args.batch_size, args.repeat - i)
-            global_generated_code_list, global_docsynth_outputs = [], []
-
             gen_inputs = gen_tokenizer(prompt_copies, return_tensors="pt").to(
                 gen_device
             )
@@ -187,8 +187,7 @@ if __name__ == "__main__":
 
             # (<==) Backward-generate docstring.
             # Prompting setup for docstring synthesizer
-            if SELECT_CRITERIA in {"cycle-match", "judge"}:
-
+            if args.select_crit in ["cycle-match", "judge-docstring-docstring"]:
                 # Attempt to recover doctring
                 # TODO: think about better prompting or (e.g. some form of estimate P(y|x))
                 # Not sure if we also want this to be sampled
@@ -220,26 +219,38 @@ if __name__ == "__main__":
 
                 global_docsynth_outputs.extend(docsynth_outputs)
 
-        print("##### Docstring Example #####")
-        print(global_docsynth_outputs[0])
+        if global_docsynth_outputs:
+            print("##### Global Docstring Example #####")
+            print(global_docsynth_outputs[0])
 
         # Rank + choose final solution
-        final_program, ranked_docstrings, ranked_programs, scores = selection(
-            SELECT_CRITERIA,
-            global_generated_code_list,
-            docstring,
-            global_docsynth_outputs,
-            gen_model,
-            gen_outputs_raw,
-            gen_scores,
-            sim_model,
-            docsynth_model,
-            docsynth_tokenizer,
-        )
-        # # Rank + choose final solution
-        # final_program = selection(
-        #     SELECT_CRITERIA, global_generated_code_list, docstring, global_rank_outputs, rank_model, rank_tokenizer
-        # )
+        if args.select_crit != "random":
+            final_program, ranked_docstrings, ranked_programs, scores = selection(
+                args.select_crit,
+                global_generated_code_list,
+                docstring,
+                global_docsynth_outputs,
+                gen_model,
+                gen_outputs_raw,
+                gen_scores,
+                sim_model,
+                docsynth_model,
+                docsynth_tokenizer,
+            )
+        else:
+            # Rank + choose final solution
+            final_program = selection(
+                args.select_crit,
+                global_generated_code_list,
+                docstring,
+                global_docsynth_outputs,
+                gen_model,
+                gen_outputs_raw,
+                gen_scores,
+                sim_model,
+                docsynth_model,
+                docsynth_tokenizer,
+            )
 
         if DEBUG:
             if any(
@@ -250,7 +261,11 @@ if __name__ == "__main__":
             ):
                 for i, p in enumerate(ranked_programs):
                     print(f"*** Program has Score {scores[i]}")
-                    print("*** Docstring:", ranked_docstrings[i])
+                    # For judge-docstring-docstring, cycle-match
+                    if ranked_docstrings:
+                        print("*** Docstring: ***")
+                        print(ranked_docstrings[i])
+                    print("*** Program ***")
                     print(p)
                     is_correct = check_correctness(data, p, args.timeout)
                     pprint(is_correct)

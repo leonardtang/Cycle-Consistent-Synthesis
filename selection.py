@@ -99,12 +99,20 @@ def selection(
         # return code_choices[best_answer]
 
         rank = np.argsort(positive)
-        return (
-            code_choices[best_answer],
-            np.array(recovered)[rank],
-            np.array(code_choices)[rank],
-            np.array(positive)[rank],
-        )
+        if scheme == "judge-docstring-docstring":
+            return (
+                code_choices[best_answer],
+                np.array(recovered)[rank],
+                np.array(code_choices)[rank],
+                np.array(positive)[rank],
+            )
+        else:
+            return (
+                code_choices[best_answer],
+                None,
+                np.array(code_choices)[rank],
+                np.array(positive)[rank],
+            )
     # Choose program with the maximum likelihood
     elif scheme == "logprob":
         transition_scores = gen_model.compute_transition_scores(
@@ -116,7 +124,7 @@ def selection(
         rank = np.argsort(mean_log_probs)
         return (
             code_choices[best_answer],
-            np.array(recovered)[rank],
+            None,
             np.array(code_choices)[rank],
             np.array(mean_log_probs)[rank],
         )
