@@ -66,7 +66,7 @@ num_gpus=$(nvidia-smi --query-gpu=name --format=csv,noheader | wc -l)
 
 # Generate hyperparameter combinations and iterate over them
 python generate_hps.py | while IFS=, read -r selectcrit fewshot gentemp repeat
-doe
+do
     attempt_run_on_gpu "--select-crit $selectcrit --few-shot $fewshot --gen-temp $gentemp --repeat $repeat"
     sleep 20
 done
