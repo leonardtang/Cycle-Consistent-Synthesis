@@ -2,7 +2,6 @@ from utils import format_prompt
 
 # TODO: maybe the goal is to elicit more of a "summary" or "goal" type of response, which more closely match the docstring.
 def setup_docstring_prompt(str, ranker, tokenizer, fs_loader=None):
-    # print("FS EXAMPLES", fs_examples)
     # System Prompts
     prompt = ""
     if "kdf" in ranker:

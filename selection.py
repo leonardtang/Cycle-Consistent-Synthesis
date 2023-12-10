@@ -9,11 +9,26 @@ import torch
 import torch.nn.functional as F
 from numpy import dot
 from numpy.linalg import norm
+from docsynth import setup_docstring_prompt
 from utils import format_prompt, autoreg_generate
 
 
 def selection(
-    scheme, code_choices, docstring, recovered, gen_model, gen_outputs, gen_scores, sim_model, judge_model, judge_tokenizer
+    args,
+    scheme,
+    code_choices,
+    docstring,
+    recovered,
+    gen_model,
+    gen_outputs,
+    gen_scores,
+    docsynth_checkpoint,
+    docsynth_device,
+    docsynth_model,
+    docsynth_tokenizer,
+    sim_model,
+    judge_model,
+    judge_tokenizer,
 ):
     if scheme == "random":
         return random.choice(code_choices)
@@ -34,7 +49,6 @@ def selection(
             ranked_answers,
             np.array(sims)[rank],
         )
-    # TODO: implement more ranking procedures to benchmark against
     # LLM isInstance() characteristic: "Is this {program} an instance of {docstring}?"
     elif "judge" in scheme:
         if scheme == "judge-program-docstring":
@@ -47,7 +61,7 @@ def selection(
             ]
         elif scheme == "judge-docstring-docstring":
             judge_prompts = [
-                f"Consider the following summarized inten: {rec}\n\n"
+                f"Consider the following summarized intent: {rec}\n\n"
                 + f"Does this summarized intent match the following goal intent: {docstring}. "
                 + "Answer strictly with 'Yes' or 'No'. Do not say anything else. "
                 + "If the summarized intent shows any sign of not matching the intended goal, you should bias your response towards 'No'."
@@ -115,11 +129,15 @@ def selection(
             )
     # Choose program with the maximum likelihood
     elif scheme == "logprob":
-        transition_scores = gen_model.compute_transition_scores(
-            gen_outputs, gen_scores, normalize_logits=True
-        ).detach().cpu()
+        transition_scores = (
+            gen_model.compute_transition_scores(
+                gen_outputs, gen_scores, normalize_logits=True
+            )
+            .detach()
+            .cpu()
+        )
         # Same as sum of log probs, which is same as product of probs
-        mean_log_probs = torch.sum(transition_scores, axis=1)
+        mean_log_probs = torch.mean(transition_scores, axis=1)
         best_answer = np.argmax(mean_log_probs, axis=0)
         rank = np.argsort(mean_log_probs)
         return (
@@ -128,5 +146,59 @@ def selection(
             np.array(code_choices)[rank],
             np.array(mean_log_probs)[rank],
         )
+    elif scheme == "forward-backward-logprob":
+        forward_transition_scores = (
+            gen_model.compute_transition_scores(
+                gen_outputs, gen_scores, normalize_logits=True
+            )
+            .detach()
+            .cpu()
+        )
+        # (==>)  P(C|D)
+        mean_foward_logprobs = torch.mean(forward_transition_scores, axis=1)
+
+        # (<==) P(D|C)
+        # Specifically: C is generated, and D is the original fixed docstring
+
+        docsynth_inputs_list = [
+            setup_docstring_prompt(gc, docsynth_checkpoint, docsynth_tokenizer)
+            for gc in code_choices
+        ]
+        # Calculate conditional docstring probability
+        docsynth_inputs = docsynth_tokenizer(
+            docsynth_inputs_list, return_tensors="pt", padding=True
+        ).to(docsynth_device)
+        docsynth_outputs_dict = docsynth_model.generate(
+            **docsynth_inputs,
+            pad_token_id=docsynth_tokenizer.eos_token_id,
+            max_new_tokens=args.new_tokens,
+            return_dict_in_generate=True,
+            output_scores=True,
+            do_sample=False,
+        )
+        docsynth_outputs = docsynth_outputs_dict.sequences[
+            :, docsynth_inputs["input_ids"].shape[1] :
+        ]
+
+        backward_transition_scores = (
+            docsynth_model.compute_transition_scores(
+                docsynth_outputs, docsynth_outputs_dict.scores, normalize_logits=True
+            )
+            .detach()
+            .cpu()
+        )
+        mean_backward_logprobs = torch.mean(backward_transition_scores, axis=1)
+
+        mean_logprobs = mean_foward_logprobs + mean_backward_logprobs
+        rank = np.argsort(mean_logprobs)
+        best_answer = np.argmax(mean_logprobs, axis=0)
+
+        return (
+            code_choices[best_answer],
+            None,
+            np.array(code_choices)[rank],
+            np.array(mean_logprobs)[rank],
+        )
+
     else:
         raise Exception(f"Scheme ({scheme}) not implemented")

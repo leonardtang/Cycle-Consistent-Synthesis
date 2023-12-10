@@ -27,7 +27,7 @@ BATCH_SIZE = 10
 GEN_TEMP = 0.8
 TIMEOUT = 30
 SELECT_CRITERIA = "logprob"
-# Program --> Documentation examples to set up documentation generation
+# Few-shot (Program --> Documentation) examples to set up documentation generation
 FEW_SHOT = 0
 SIM_MATCH = "sentence-transformer"
 DEBUG = False
@@ -79,7 +79,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     print("ARGS", args)
-
     print("########## HYPERPARAMETERS ##########")
     print("NEW_TOKENS:", args.new_tokens)
     print("REPEAT:", args.repeat)
@@ -189,7 +188,6 @@ if __name__ == "__main__":
             # Prompting setup for docstring synthesizer
             if args.select_crit in ["cycle-match", "judge-docstring-docstring"]:
                 # Attempt to recover doctring
-                # TODO: think about better prompting or (e.g. some form of estimate P(y|x))
                 # Not sure if we also want this to be sampled
                 docsynth_inputs_list = [
                     setup_docstring_prompt(
@@ -226,6 +224,7 @@ if __name__ == "__main__":
         # Rank + choose final solution
         if args.select_crit != "random":
             final_program, ranked_docstrings, ranked_programs, scores = selection(
+                args,
                 args.select_crit,
                 global_generated_code_list,
                 docstring,
@@ -233,6 +232,10 @@ if __name__ == "__main__":
                 gen_model,
                 gen_outputs_raw,
                 gen_scores,
+                docsynth_checkpoint,
+                docsynth_device,
+                docsynth_model,
+                docsynth_tokenizer,
                 sim_model,
                 docsynth_model,
                 docsynth_tokenizer,
@@ -240,6 +243,7 @@ if __name__ == "__main__":
         else:
             # Rank + choose final solution
             final_program = selection(
+                args,
                 args.select_crit,
                 global_generated_code_list,
                 docstring,
@@ -247,6 +251,10 @@ if __name__ == "__main__":
                 gen_model,
                 gen_outputs_raw,
                 gen_scores,
+                docsynth_checkpoint,
+                docsynth_device,
+                docsynth_model,
+                docsynth_tokenizer,
                 sim_model,
                 docsynth_model,
                 docsynth_tokenizer,
