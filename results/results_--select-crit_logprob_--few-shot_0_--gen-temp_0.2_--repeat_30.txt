@@ -1,0 +1,260 @@
+ARGS Namespace(new_tokens=128, repeat=30, batch_size=10, gen_temp=0.2, select_crit='logprob', few_shot=0, timeout=30, sim_match='sentence-transformer')
+########## HYPERPARAMETERS ##########
+NEW_TOKENS: 128
+REPEAT: 30
+BATCH_SIZE: 10
+GEN_TEMP: 0.2
+TIMEOUT: 30
+SELECT_CRITERIA: logprob
+FEW_SHOT 0
+DOCSYNTH: mistralai/Mistral-7B-Instruct-v0.1
+GENERATOR: Salesforce/codegen2-7B
+
+
+
+!!!!!!!!!!!!! Evaluating Question 0 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Check if in given list of numbers, are any two numbers closer to each other than
+given threshold.
+>>> has_close_elements([1.0, 2.0, 3.0], 0.5)
+False
+>>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)
+True
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 1 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Input to this function is a string containing multiple groups of nested parentheses. Your goal is to
+separate those group into separate strings and return the list of those.
+Separate groups are balanced (each open brace is properly closed) and not nested within each other
+Ignore any spaces in the input string.
+>>> separate_paren_groups('( ) (( )) (( )( ))')
+['()', '(())', '(()())']
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 2 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Given a positive floating point number, it can be decomposed into
+and integer part (largest integer smaller than given number) and decimals
+(leftover part always smaller than 1).
+
+Return the decimal part of the number.
+>>> truncate_number(3.5)
+0.5
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 3 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ You're given a list of deposit and withdrawal operations on a bank account that starts with
+zero balance. Your task is to detect if at any point the balance of account fallls below zero, and
+at that point function should return True. Otherwise it should return False.
+>>> below_zero([1, 2, 3])
+False
+>>> below_zero([1, 2, -4, 5])
+True
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 4 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ For a given list of input numbers, calculate Mean Absolute Deviation
+around the mean of this dataset.
+Mean Absolute Deviation is the average absolute difference between each
+element and a centerpoint (mean in this case):
+MAD = average | x - x_mean |
+>>> mean_absolute_deviation([1.0, 2.0, 3.0, 4.0])
+1.0
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 5 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Insert a number 'delimeter' between every two consecutive elements of input list `numbers'
+>>> intersperse([], 4)
+[]
+>>> intersperse([1, 2, 3], 4)
+[1, 4, 2, 4, 3]
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 6 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Input to this function is a string represented multiple groups for nested parentheses separated by spaces.
+For each of the group, output the deepest level of nesting of parentheses.
+E.g. (()()) has maximum two levels of nesting while ((())) has three.
+
+>>> parse_nested_parens('(()()) ((())) () ((())()())')
+[2, 3, 1, 3]
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 7 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Filter an input list of strings only for ones that contain given substring
+>>> filter_by_substring([], 'a')
+[]
+>>> filter_by_substring(['abc', 'bacd', 'cde', 'array'], 'a')
+['abc', 'bacd', 'array']
+
+Correct!
+
+
+
+!!!!!!!!!!!!! Evaluating Question 8 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ For a given list of integers, return a tuple consisting of a sum and a product of all the integers in a list.
+Empty sum should be equal to 0 and empty product should be equal to 1.
+>>> sum_product([])
+(0, 1)
+>>> sum_product([1, 2, 3, 4])
+(10, 24)
+
+Correct!
+
+
+
+!!!!!!!!!!!!! Evaluating Question 9 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ From a given list of integers, generate a list of rolling maximum element found until given moment
+in the sequence.
+>>> rolling_max([1, 2, 3, 2, 3, 4, 2])
+[1, 2, 3, 3, 3, 4, 4]
+
+Correct!
+
+
+
+!!!!!!!!!!!!! Evaluating Question 10 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Test if given string is a palindrome 
+
+
+
+!!!!!!!!!!!!! Evaluating Question 11 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Input are two strings a and b consisting only of 1s and 0s.
+Perform binary XOR on these inputs and return result also as a string.
+>>> string_xor('010', '110')
+'100'
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 12 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Out of list of strings, return the longest one. Return the first one in case of multiple
+strings of the same length. Return None in case the input list is empty.
+>>> longest([])
+
+>>> longest(['a', 'b', 'c'])
+'a'
+>>> longest(['a', 'bb', 'ccc'])
+'ccc'
+
+Correct!
+
+
+
+!!!!!!!!!!!!! Evaluating Question 13 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Return a greatest common divisor of two integers a and b
+>>> greatest_common_divisor(3, 5)
+1
+>>> greatest_common_divisor(25, 15)
+5
+
+Correct!
+
+
+
+!!!!!!!!!!!!! Evaluating Question 14 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Return list of all prefixes from shortest to longest of the input string
+>>> all_prefixes('abc')
+['a', 'ab', 'abc']
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 15 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Return a string containing space-delimited numbers starting from 0 upto n inclusive.
+>>> string_sequence(0)
+'0'
+>>> string_sequence(5)
+'0 1 2 3 4 5'
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 16 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Given a string, find out how many distinct characters (regardless of case) does it consist of
+>>> count_distinct_characters('xyzXYZ')
+3
+>>> count_distinct_characters('Jerry')
+4
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 17 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Input to this function is a string representing musical notes in a special ASCII format.
+Your task is to parse this string and return list of integers corresponding to how many beats does each
+not last.
+
+Here is a legend:
+'o' - whole note, lasts four beats
+'o|' - half note, lasts two beats
+'.|' - quater note, lasts one beat
+
+>>> parse_music('o o| .| o| o| .| .| .| .| o o')
+[4, 2, 1, 2, 2, 1, 1, 1, 1, 4, 4]
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 18 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Find how many times a given substring can be found in the original string. Count overlaping cases.
+>>> how_many_times('', 'a')
+0
+>>> how_many_times('aaa', 'a')
+3
+>>> how_many_times('aaaa', 'aa')
+3
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 19 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Input is a space-delimited string of numberals from 'zero' to 'nine'.
+Valid choices are 'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight' and 'nine'.
+Return the string with numbers sorted from smallest to largest
+>>> sort_numbers('three one five')
+'one three five'
+
+
+
+
+!!!!!!!!!!!!! Evaluating Question 20 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ From a supplied list of numbers (of length at least two) select and return two that are the closest to each
+other and return them in order (smaller number, larger number).
+>>> find_closest_elements([1.0, 2.0, 3.0, 4.0, 5.0, 2.2])
+(2.0, 2.2)
+>>> find_closest_elements([1.0, 2.0, 3.0, 4.0, 5.0, 2.0])
+(2.0, 2.0)
+

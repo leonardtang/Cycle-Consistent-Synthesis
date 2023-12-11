@@ -1,0 +1,36 @@
+ARGS Namespace(new_tokens=128, repeat=30, batch_size=10, gen_temp=0.2, select_crit='random', few_shot=0, timeout=30, sim_match='sentence-transformer')
+########## HYPERPARAMETERS ##########
+NEW_TOKENS: 128
+REPEAT: 30
+BATCH_SIZE: 10
+GEN_TEMP: 0.2
+TIMEOUT: 30
+SELECT_CRITERIA: random
+FEW_SHOT 0
+DOCSYNTH: mistralai/Mistral-7B-Instruct-v0.1
+GENERATOR: Salesforce/codegen2-7B
+
+
+
+!!!!!!!!!!!!! Evaluating Question 0 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Check if in given list of numbers, are any two numbers closer to each other than
+given threshold.
+>>> has_close_elements([1.0, 2.0, 3.0], 0.5)
+False
+>>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)
+True
+
+Correct!
+
+
+
+!!!!!!!!!!!!! Evaluating Question 1 !!!!!!!!!!!!!
+##### Intended Docstring #####
+ Input to this function is a string containing multiple groups of nested parentheses. Your goal is to
+separate those group into separate strings and return the list of those.
+Separate groups are balanced (each open brace is properly closed) and not nested within each other
+Ignore any spaces in the input string.
+>>> separate_paren_groups('( ) (( )) (( )( ))')
+['()', '(())', '(()())']
+

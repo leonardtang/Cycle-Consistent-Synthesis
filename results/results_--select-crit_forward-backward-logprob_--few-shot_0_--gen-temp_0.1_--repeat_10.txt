@@ -1,0 +1,9 @@
+ARGS Namespace(new_tokens=128, repeat=10, batch_size=10, gen_temp=0.1, select_crit='fb-logprob', few_shot=0, timeout=30, sim_match='sentence-transformer')
+########## HYPERPARAMETERS ##########
+NEW_TOKENS: 128
+REPEAT: 10
+BATCH_SIZE: 10
+GEN_TEMP: 0.1
+TIMEOUT: 30
+SELECT_CRITERIA: fb-logprob
+FEW_SHOT 0

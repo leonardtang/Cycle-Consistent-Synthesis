@@ -1,0 +1,9 @@
+ARGS Namespace(new_tokens=128, repeat=10, batch_size=10, gen_temp=0.5, select_crit='cycle-match', few_shot=0, timeout=30, sim_match='sentence-transformer')
+########## HYPERPARAMETERS ##########
+NEW_TOKENS: 128
+REPEAT: 10
+BATCH_SIZE: 10
+GEN_TEMP: 0.5
+TIMEOUT: 30
+SELECT_CRITERIA: cycle-match
+FEW_SHOT 0
