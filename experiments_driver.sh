@@ -13,7 +13,6 @@ eval "$(conda shell.bash hook)"
 conda activate redteam
 
 # Function to check if there is enough free memory on the GPU
-# This is a simplistic check. Replace 2000 with the approximate memory requirement of your task in MiB.
 check_gpu_memory() {
     local gpu_id=$1
     local required_memory=65000
@@ -56,7 +55,7 @@ attempt_run_on_gpu() {
         done
 
         echo "Waiting for a GPU to become available..."
-        sleep 100 # Sleep for 10 seconds before retrying
+        sleep 100
     done
 }
 

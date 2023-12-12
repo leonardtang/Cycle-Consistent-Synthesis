@@ -146,7 +146,7 @@ def selection(
             np.array(code_choices)[rank],
             np.array(mean_log_probs)[rank],
         )
-    elif scheme == "forward-backward-logprob":
+    elif scheme == "fb-logprob":
         forward_transition_scores = (
             gen_model.compute_transition_scores(
                 gen_outputs, gen_scores, normalize_logits=True
