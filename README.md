@@ -14,6 +14,14 @@ In brief, we introduce the following maximal mutual information ranking framewor
 
 ![alt text](MMI.png)
 
+Under this framework, we introduce the following three maximal mutual information ranking methods:
+
+1. Docstring Cycle-Consistency
+2. The isInstance() Characteristic
+3. Forward-Backward Conditional Product
+
+Our best-performing methods improve CodeGen2-7B absolute performance on HumanEval by 4%, for a relative improvement of 28.57% over a random baseline.
+
 To seamlessly reproduce all experiments, run the following:
 
 ```bash experiments.sh```
